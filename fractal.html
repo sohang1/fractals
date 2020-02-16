@@ -1,0 +1,113 @@
+<!DOCTYPE html>
+<html>
+<head>
+<title>Fractal</title>
+<style>
+canvas {border: 1px solid black; }
+</style>
+</head>
+<body>
+<center>
+<canvas width="200" height="200" id="tri"></canvas><br /><br />
+<canvas width="400" height="400" id="tree"></canvas>
+</center>
+<script>
+'use strict';
+const ctxTri = document.getElementById('tri').getContext('2d'),
+         ctxTree = document.getElementById('tree').getContext('2d');
+const side = 200,
+          A = {x: 3, y: 180},
+          B = {x: A.x + side, y: A.y},
+          C = {x: A.x + side / 2, y: A.y - Math.sqrt(3) * side / 2};
+
+function mid(p1, p2) {
+	return {x: (p1.x + p2.x) / 2, y: (p1.y + p2.y) / 2};
+}
+
+function fillTriangle(ctx, p1, p2, p3, color) {
+	ctx.beginPath();
+	ctx.moveTo(p1.x, p1.y);
+	ctx.lineTo(p2.x, p2.y);
+	ctx.lineTo(p3.x, p3.y);
+	ctx.fillStyle = color;
+	ctx.fill();
+}
+/*
+function tri(p1, p2, p3, delay) {
+	var m1 = mid(p2, p3), m2 = mid(p3, p1), m3 = mid(p1, p2);
+	fillTriangle(m1, m2, m3, 'white');
+	if (Math.pow(p2.x - p1.x, 2) + Math.pow(p2.y - p1.y, 2) > 4) {
+		setTimeout(tri.bind(null, p1, m2, m3), delay);
+		setTimeout(tri.bind(null, p2, m3, m1), delay);
+		setTimeout(tri.bind(null, p3, m1, m2), delay);
+	}
+}
+*/
+
+function makeFractal(ctx, action, args, cont, obj, prop) {
+	return function(delay, callback=function() {}) {
+		var fcalls_curr = [args], fcalls_next = [];
+		function draw() {
+			if (cont(...fcalls_curr[0])) {
+				fcalls_curr.forEach(function(a) {
+					fcalls_next.push(...action(ctx, ...a));
+				});
+				fcalls_curr = fcalls_next;
+				fcalls_next = [];
+				obj[prop] = setTimeout(draw, delay);
+			} else callback();
+		}
+		
+		draw();
+	};
+}
+
+function repeatFractal(fractal, delay) {
+	//in setTimeout.bind(...),
+	//first delay is argument to setTimeout
+	//second delay is argument to repeatFractal
+	//(works because in newer browsers, setTimeout passes extra arguments to passed function)
+	fractal(delay, setTimeout.bind(null, repeatFractal, delay, fractal, delay));
+}
+
+function magnitude(p1, p2) {
+	return Math.sqrt(Math.pow(p2.x - p1.x, 2) + Math.pow(p2.y - p1.y, 2));
+}
+
+function treeFac(ctx, length, angle, min) {
+	var len = length;
+	var func = makeFractal(ctx, function(ctx, start, ang) {
+		var end = {x: start.x + len * Math.sin(ang), y: start.y - len * Math.cos(ang)};
+		ctx.moveTo(start.x, start.y);
+		ctx.lineTo(end.x, end.y);
+		ctx.stroke();
+		return [[end, ang + angle], [end, ang - angle]];
+	}, [{x: 200, y: 350}, 0], () => (len *= 2 / 3) > min, window, 'tree');
+	
+	return function(delay, callback=function() {}) {
+		func(delay, function() {
+			len = length;
+			ctx.clearRect(0, 0, ctx.canvas.width, ctx.canvas.height);
+			callback();
+		});
+	};
+}
+
+var triFac = makeFractal(ctxTri,
+	function(ctx, p1, p2, p3) {
+		var m1 = mid(p2, p3),
+	      	m2 = mid(p3, p1),
+	      	m3 = mid(p1, p2);
+		fillTriangle(ctx, m1, m2, m3, 'white');
+		return [[p1, m2, m3], [m1, p2, m3], [m1, m2, p3]];
+	}, [A, B, C], (p1, p2) => magnitude(p1, p2) > 4, 
+window, 'tri');
+
+repeatFractal(treeFac(ctxTree, 180, Math.PI / 6, 4), 1000);
+repeatFractal(function(delay, callback) {
+	fillTriangle(ctxTri, A, B, C, 'blue');
+	window.handle = setTimeout(triFac.bind(null, delay, callback), delay);
+}, 1000);
+</script>
+</body>
+</html>
